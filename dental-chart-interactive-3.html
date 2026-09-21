@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Odontogram — anatomical base layer</title>
+<style>
+  :root{
+    --bg:#F7F5F1; --ink:#22303C; --ink-soft:#5B6670; --line:#DCD6C9;
+    --select:#2C6E9E;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system,"Segoe UI",Roboto,sans-serif; padding:20px 14px 50px;}
+  h1{font-family:Georgia,serif; font-size:1.2rem; margin:0 0 4px;}
+  p.sub{color:var(--ink-soft); font-size:0.85rem; margin:0 0 20px; max-width:640px;}
+  .wrap{max-width:1100px; margin:0 auto;}
+
+  .panel{background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px 12px 20px;}
+  .odonto-row{display:grid; grid-template-columns:repeat(16,1fr); gap:0; padding:6px 0; position:relative;}
+  .bridge-bar{position:absolute; height:4px; background:#B98A2E; border-radius:2px; pointer-events:none; z-index:2;}
+  #rowUpper{background:radial-gradient(ellipse 75% 45% at 50% 88%, rgba(224,110,100,0.28), transparent 70%);}
+  #rowLower{background:radial-gradient(ellipse 75% 45% at 50% 12%, rgba(224,110,100,0.28), transparent 70%);}
+  .tooth-cell{display:flex; flex-direction:column; align-items:center; width:100%; min-width:0;}
+  .tooth-svg{width:100%; height:auto; display:block; cursor:pointer;}
+  .tooth-svg.flip-v{transform:scaleY(-1);}
+  .tooth-num{font-size:0.6rem; color:var(--ink-soft); font-weight:600;}
+  .tooth-num.selected{color:var(--select);}
+  .bite-line{height:1px; background:var(--line); margin:4px 0;}
+  .side-labels{display:flex; justify-content:space-between; padding:0 4%; font-size:0.72rem; color:var(--ink-soft); margin-top:2px;}
+
+  .tooth-group .halo{opacity:0; transition:opacity .15s;}
+  .tooth-group.selected .halo{opacity:1;}
+  .tooth-group.hidden{visibility:hidden;}
+  .tooth-group:hover .halo{opacity:0.5;}
+
+  .below{display:grid; grid-template-columns:1.1fr 0.9fr; gap:16px; margin-top:18px; align-items:start;}
+  @media (max-width:760px){ .below{grid-template-columns:1fr;} }
+
+  .info-panel{background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px;}
+  .info-panel h3{font-size:0.92rem; margin:0 0 10px;}
+  .info-panel .empty{color:var(--ink-soft); font-size:0.85rem;}
+  pre{background:#F4F1EA; border-radius:8px; padding:10px; font-size:0.78rem; overflow-x:auto; margin:10px 0;}
+  .actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;}
+  button{font-family:inherit; font-size:0.82rem; font-weight:600; border:none; border-radius:8px; padding:8px 12px; cursor:pointer;}
+  .btn-primary{background:var(--ink); color:#fff;}
+  .btn-ghost{background:transparent; color:var(--ink); border:1px solid var(--ink);}
+  .btn-danger{background:#A6472F; color:#fff;}
+
+  .case-header{
+    display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end;
+    background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-bottom:18px;
+  }
+  .case-field{min-width:160px;}
+  .case-field label{display:block; font-size:0.72rem; color:var(--ink-soft); margin-bottom:2px;}
+  .case-field [contenteditable]{border-bottom:1px dashed var(--line); padding:2px 2px; font-weight:600; outline:none; min-height:1.2em;}
+  .case-field [contenteditable]:focus{border-bottom:1px solid var(--select);}
+  .case-header button{margin-left:auto;}
+
+  .api-panel{background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px;}
+  .api-panel h3{font-size:0.92rem; margin:0 0 10px;}
+  .api-panel code{font-size:0.78rem; background:#F4F1EA; padding:1px 5px; border-radius:4px;}
+  .api-panel ul{margin:0; padding-left:18px; font-size:0.82rem; color:var(--ink-soft); line-height:1.7;}
+
+  .totals{margin-top:14px; padding-top:10px; border-top:1px solid var(--line); display:flex; justify-content:space-between; font-weight:700; font-size:0.9rem;}
+
+  .cat-list{display:flex; flex-direction:column; gap:8px; margin-bottom:12px;}
+  .cat-accordion{border:1px solid var(--line); border-radius:8px; overflow:hidden;}
+  .cat-accordion summary{
+    list-style:none; cursor:pointer; padding:9px 12px; font-weight:700; font-size:0.85rem;
+    background:color-mix(in srgb, var(--cat-color) 14%, white);
+    color:var(--cat-color);
+  }
+  .cat-accordion summary::-webkit-details-marker{display:none;}
+  .cat-accordion summary::before{content:"▸ "; }
+  .cat-accordion[open] summary::before{content:"▾ ";}
+  .chip-row{display:flex; flex-wrap:wrap; gap:6px; padding:10px 12px;}
+  .chip{
+    font-family:inherit; font-size:0.78rem; font-weight:600; cursor:pointer;
+    border:1px solid var(--line); background:#fff; color:var(--ink);
+    border-radius:999px; padding:6px 11px;
+  }
+  .chip-active{background:var(--chip-color); border-color:var(--chip-color); color:#fff;}
+  .chip-armed{outline:2px solid var(--chip-color); background:color-mix(in srgb, var(--chip-color) 16%, white);}
+  .armed-hint{font-size:0.78rem; font-weight:700; margin:6px 0 4px;}
+
+  .tooth-summary{background:#F4F1EA; border-radius:8px; padding:10px 14px; margin:10px 0; font-size:0.85rem;}
+  .tooth-summary .summary-line{margin-bottom:6px;}
+  .summary-block{margin-top:8px;}
+  .summary-label{font-weight:700; font-size:0.78rem; color:var(--ink-soft); display:block; margin-bottom:2px;}
+  .tooth-summary ul{margin:0; padding-left:18px;}
+  .tooth-summary li{margin-bottom:2px;}
+  .empty-inline{color:var(--ink-soft); list-style:none; margin-left:-18px;}
+
+  body.exporting .no-print, body.exporting .cat-list, body.exporting .armed-hint,
+  body.exporting .plan-odonto, body.exporting .chip-remove, body.exporting .below { display:none !important; }
+
+  .row-done .plan-row-tooth, .row-done .plan-row-name{ text-decoration:line-through; color:var(--ink-soft); }
+  .row-done-check{ margin-right:2px; accent-color:#3C8577; }
+
+  .plan-progress{margin-bottom:10px;}
+  .plan-progress-bar{height:8px; background:#EFEBE2; border-radius:4px; overflow:hidden;}
+  .plan-progress-fill{height:100%; transition:width 0.2s;}
+  .plan-progress-label{font-size:0.75rem; color:var(--ink-soft); margin-top:4px;}
+
+  .plans-title{font-family:Georgia,serif; font-size:1.05rem; margin:26px 0 10px;}
+  .plans-row{display:flex; gap:14px; align-items:flex-start; overflow-x:auto;}
+  .plan-col{flex:1; min-width:340px; background:#fff; border:1px solid var(--line); border-radius:12px; overflow:hidden;}
+  .plan-odonto{margin:8px 0;}
+  .plan-odonto .odonto-row{grid-template-columns:repeat(16,1fr); padding:2px 0;}
+  .plan-odonto .odonto-row:first-of-type{background:radial-gradient(ellipse 75% 45% at 50% 88%, rgba(224,110,100,0.22), transparent 70%);}
+  .plan-odonto .odonto-row:last-of-type{background:radial-gradient(ellipse 75% 45% at 50% 12%, rgba(224,110,100,0.22), transparent 70%);}
+  .plan-odonto .tooth-num{font-size:0.5rem;}
+  .plan-head{padding:11px 14px; font-family:Georgia,serif; font-size:1rem; text-align:center;}
+  .plan-body{padding:12px 14px 14px;}
+  .plan-groups{margin-top:10px; display:flex; flex-direction:column; gap:10px;}
+  .plan-group{border:1px solid var(--line); border-radius:8px; padding:8px 10px;}
+  .plan-group-head{display:flex; justify-content:space-between; align-items:center; font-weight:700; font-size:0.82rem; margin-bottom:6px;}
+  .chip-remove{background:none; border:none; cursor:pointer; color:var(--ink-soft); font-size:0.85rem; padding:2px 4px;}
+  .plan-row{display:flex; align-items:center; gap:8px; font-size:0.82rem; padding:3px 0;}
+  .plan-row-tooth{font-weight:700; width:24px; flex-shrink:0;}
+  .plan-row-name{flex:1; color:var(--ink-soft);}
+  .plan-row-price{width:64px; border:1px solid var(--line); border-radius:6px; padding:2px 5px; font-size:0.82rem; font-family:inherit;}
+  .plan-total{display:flex; justify-content:space-between; margin-top:10px; padding-top:8px; border-top:2px solid var(--ink); font-weight:700; font-size:0.9rem;}
+  @media (max-width:820px){ .plans-row{flex-direction:column;} .plan-col{min-width:0;} }
+@media print{
+  @page{ size: A4 landscape; margin: 10mm; }
+  body{ padding:0; background:#fff; }
+  .no-print, .cat-list, .armed-hint, .plan-odonto, .chip-remove, .below { display:none !important; }
+  .case-header{ border:none; padding:0 0 10px; margin-bottom:10px; }
+  .case-header button{ display:none; }
+  .plans-row{ flex-direction:row; }
+  .plan-col{ min-width:0; break-inside:avoid; }
+  .plan-row-price{ border:none !important; background:none !important; padding:0 !important; width:auto !important; }
+  input[type=number]::-webkit-inner-spin-button{ -webkit-appearance:none; }
+}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute;">
+  <defs>
+    <linearGradient id="enamelGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFDF9"/><stop offset="100%" stop-color="#F1E9D8"/>
+    </linearGradient>
+    <linearGradient id="rootGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F2DAB0"/><stop offset="100%" stop-color="#E7C48C"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <h1>Зубная формула и план лечения</h1>
+  <p class="sub">32 независимых объекта (tooth-11 … tooth-48), каждый со своей моделью данных. Клик по зубу — выбор/подсветка. Ниже — статус, диагнозы и три варианта плана лечения.</p>
+
+  <div class="case-header">
+    <div class="case-field"><label>Пациент (ФИО)</label><div contenteditable="true">Фамилия Имя Отчество</div></div>
+    <div class="case-field"><label>Врач (ФИО)</label><div contenteditable="true">Фамилия Имя Отчество</div></div>
+    <div class="case-field"><label>Дата</label><div contenteditable="true" id="caseDate"></div></div>
+    <button class="btn-primary no-print" onclick="window.print()">Скачать PDF / Печать</button>
+    <button class="btn-ghost no-print" onclick="downloadImage()">Скачать картинку (PNG)</button>
+    <button class="btn-ghost no-print" onclick="savePatientFile()">Сохранить карту (файл)</button>
+    <button class="btn-ghost no-print" onclick="document.getElementById('loadFileInput').click()">Открыть карту (файл)</button>
+    <input type="file" id="loadFileInput" accept=".json" style="display:none" onchange="loadPatientFile(this.files[0])">
+    <button class="btn-danger no-print" onclick="startNewPatient()">Новый пациент (очистить)</button>
+  </div>
+
+  <div class="panel">
+    <div class="odonto-row" id="rowUpper"></div>
+    <div class="bite-line"></div>
+    <div class="odonto-row" id="rowLower"></div>
+    <div class="side-labels"><span>Правая сторона</span><span>Левая сторона</span></div>
+  </div>
+
+  <div class="below">
+    <div class="info-panel">
+      <h3>Выбранный зуб — состояние (data model)</h3>
+      <div id="infoBody"><div class="empty">Кликните по зубу на схеме.</div></div>
+    </div>
+
+    <div class="api-panel">
+      <details>
+        <summary><h3 style="display:inline; margin:0;">Программный доступ (для фронтенда)</h3></summary>
+        <ul>
+          <li><code>selectTooth(fdi)</code> — выбрать и подсветить зуб</li>
+          <li><code>setStatus(fdi, status)</code> — например <code>"missing"</code>, <code>"healthy"</code></li>
+          <li><code>toggleHide(fdi)</code> — скрыть/показать зуб на схеме</li>
+          <li><code>addCondition(fdi, code)</code> — добавить диагноз в <code>conditions[]</code></li>
+          <li><code>addFinancialItem(fdi, {name, price})</code> — добавить позицию плана лечения</li>
+          <li><code>getTooth(fdi)</code> / <code>getAllTeeth()</code> — прочитать модель</li>
+        </ul>
+      </details>
+      <div class="totals"><span>Итого по плану (все зубы)</span><span id="grandTotal">0 ₽</span></div>
+    </div>
+  </div>
+
+  <h2 class="plans-title">Планы лечения</h2>
+  <div class="plans-row" id="plansRow"></div>
+</div>
+
+<script>
+/* ===================== ANATOMY LAYER (shape generation) ===================== */
+function shapeCategory(n){
+  const last = n % 10;
+  const isUpper = n < 30;
+  if(last===1||last===2) return isUpper ? 'incisorUpper' : 'incisorLower';
+  if(last===3) return 'canine';
+  if(last===4||last===5) return 'premolar';
+  if(last===6||last===7) return isUpper ? 'molarUpper' : 'molarLower';
+  if(last===8) return isUpper ? 'thirdMolarUpper' : 'thirdMolarLower';
+  return 'incisorUpper';
+}
+const ROOT_LEN_MM = {
+  incisorUpper:13.0, incisorLower:12.5, canine:17.0, premolar:14.0,
+  molarUpper:13.0, molarLower:14.0, thirdMolarUpper:11.0, thirdMolarLower:11.0
+};
+function apexFor(cat){ return 34 - (ROOT_LEN_MM[cat]/17)*31.5; }
+
+const ROOT_FILL='url(#rootGrad)', ROOT_STROKE='#B99A6E';
+const CROWN_FILL='url(#enamelGrad)', CROWN_STROKE='#B7A98C';
+
+function singleRoot(rw, apexY, colors, showPerio){
+  const bx1=17-rw, bx2=17+rw, midY=(34+apexY)/2;
+  const canal = `<line x1="17" y1="32" x2="17" y2="${apexY+3}" stroke="${colors.canal}" stroke-width="0.8" opacity="0.5"/>`;
+  const perio = showPerio ? periodontitisMarker(17, apexY) : '';
+  return `<path d="M${bx1},34 Q${17-rw*0.75},${midY} 17,${apexY} Q${17+rw*0.75},${midY} ${bx2},34 Z" fill="${colors.fill}" stroke="${colors.stroke}" stroke-width="1"/>${canal}${perio}`;
+}
+function prongRoot(bx1,bx2,ax,ay,colors,showPerio){
+  const midY=(34+ay)/2;
+  const perio = showPerio ? periodontitisMarker(ax, ay) : '';
+  return `<path d="M${bx1},34 Q${bx1+(ax-bx1)*0.4},${midY} ${ax},${ay} Q${bx2+(ax-bx2)*0.4},${midY} ${bx2},34 Z" fill="${colors.fill}" stroke="${colors.stroke}" stroke-width="1"/>${perio}`;
+}
+function periodontitisMarker(cx, apexY){
+  return `<circle cx="${cx}" cy="${apexY}" r="3" fill="#3C8577"/><circle cx="${cx}" cy="${apexY}" r="5.5" fill="none" stroke="#3C8577" stroke-width="1" stroke-dasharray="1.5,1.5" opacity="0.65"/>`;
+}
+function hi(d){ return `<path d="${d}" fill="none" stroke="#fff" stroke-width="1" opacity="0.55"/>`; }
+
+function rootColorsFor(t){
+  if(t.conditions.includes('pulpitis')) return {fill:'#9C4040', stroke:'#7A2424', canal:'#6E1F1F'};
+  return {fill:ROOT_FILL, stroke:ROOT_STROKE, canal:'#C9A876'};
+}
+function crownColorsFor(t){
+  if(t.procedures.includes('crown') || t._pontic) return {fill:'#DCEBF7', stroke:'#4E7FA6'};
+  return {fill:CROWN_FILL, stroke:CROWN_STROKE};
+}
+function cariesOverlay(t){
+  let sev = null;
+  if(t.conditions.includes('caries_deep')) sev='deep';
+  else if(t.conditions.includes('caries_medium')) sev='medium';
+  else if(t.conditions.includes('caries_superficial')) sev='superficial';
+  if(!sev) return '';
+  const r = sev==='deep'?4.4 : sev==='medium'?3.1 : 1.9;
+  return `<ellipse cx="17" cy="45" rx="${r}" ry="${r*0.8}" fill="#5C4033"/>`;
+}
+function fillingOverlay(t){
+  let out = '';
+  if(t.conditions.includes('filling')){
+    out += `<ellipse cx="17" cy="45" rx="4" ry="3.2" fill="#B7BEC4" stroke="#8A9096" stroke-width="0.8"/>
+            <path d="M15,43.3 Q17,42.6 19,43.3" fill="none" stroke="#E4E7EA" stroke-width="0.7" opacity="0.8"/>`;
+  }
+  if(t.conditions.includes('filling_defect')){
+    out += `<ellipse cx="17" cy="45" rx="4" ry="3.2" fill="#B7BEC4" stroke="#8A9096" stroke-width="0.8"/>
+            <path d="M13.5,42.5 L16.5,45 L14.7,46.8 L18,45.2 L16.3,48.2 L20.5,44.8" fill="none" stroke="#4A4E52" stroke-width="0.9"/>`;
+  }
+  return out;
+}
+const STUMP_WIDTH = {incisorUpper:7,incisorLower:5.5,canine:7.5,premolar:8.5,molarUpper:13,molarLower:13,thirdMolarUpper:10,thirdMolarLower:10};
+function rootOnlyCrown(cat){
+  const w = STUMP_WIDTH[cat]||7, x1=17-w, x2=17+w;
+  return `<path d="M${x1},33 L${x1+3},29 L${x1+7},34 L17,28 L${x2-7},34 L${x2-3},29 L${x2},33 L${x2},40 L${x1},40 Z" fill="#96795A" stroke="#6b5540" stroke-width="1"/>`;
+}
+function implantPost(apexY){
+  return `
+    <rect x="13.5" y="${apexY+2}" width="7" height="${34-(apexY+2)}" rx="1" fill="#A9B2B9" stroke="#6b7680" stroke-width="1"/>
+    <line x1="13.5" y1="${apexY+7}" x2="20.5" y2="${apexY+7}" stroke="#6b7680" stroke-width="0.8"/>
+    <line x1="13.5" y1="${apexY+12}" x2="20.5" y2="${apexY+12}" stroke="#6b7680" stroke-width="0.8"/>
+    <line x1="13.5" y1="${apexY+17}" x2="20.5" y2="${apexY+17}" stroke="#6b7680" stroke-width="0.8"/>
+    <path d="M14,${apexY+2} L20,${apexY+2} L18.5,${apexY-2} Q17,${apexY-3.5} 15.5,${apexY-2} Z" fill="#C7CDD2" stroke="#8a9198" stroke-width="0.8"/>`;
+}
+
+function shapePaths(cat, t){
+  const apexY = apexFor(cat);
+  const rc = rootColorsFor(t);
+  const cc = crownColorsFor(t);
+  const showPerio = t.conditions.includes('periodontitis');
+  const isRootOnly = t.conditions.includes('rootOnly');
+  const isImplant = t.procedures.includes('implant');
+
+  let root, crown;
+  if(isImplant){
+    root = implantPost(apexY);
+  } else {
+    switch(cat){
+      case 'incisorUpper': root = singleRoot(4.3,apexY,rc,showPerio); break;
+      case 'incisorLower': root = singleRoot(3.6,apexY,rc,showPerio); break;
+      case 'canine': root = singleRoot(4.7,apexY,rc,showPerio); break;
+      case 'premolar': root = singleRoot(5,apexY,rc,showPerio); break;
+      case 'molarUpper': root = prongRoot(13,21,17,apexY+8,rc,showPerio)+prongRoot(6,13,9,apexY,rc,showPerio)+prongRoot(21,28,25,apexY,rc,showPerio); break;
+      case 'molarLower': root = prongRoot(6,17,10,apexY,rc,showPerio)+prongRoot(17,28,24,apexY,rc,showPerio); break;
+      case 'thirdMolarUpper': root = prongRoot(9,19,14,apexY+3,rc,showPerio)+prongRoot(15,25,20,apexY+3,rc,showPerio); break;
+      case 'thirdMolarLower': root = prongRoot(8,17,11,apexY+3,rc,showPerio)+prongRoot(17,26,23,apexY+3,rc,showPerio); break;
+    }
+  }
+
+  if(isRootOnly){
+    crown = rootOnlyCrown(cat);
+  } else {
+    switch(cat){
+      case 'incisorUpper': crown = `<path d="M11,32 Q10,32 10,36 L10,54 Q10,60.5 17,61 Q24,60.5 24,54 L24,36 Q24,32 23,32 Q17,30.5 11,32 Z" fill="${cc.fill}" stroke="${cc.stroke}" stroke-width="1.1"/>`+hi("M12,35 Q17,37 22,35"); break;
+      case 'incisorLower': crown = `<path d="M12.5,32 Q11.5,32 11.5,36 L11.5,52 Q11.5,58.5 17,59 Q22.5,58.5 22.5,52 L22.5,36 Q22.5,32 21.5,32 Q17,30.8 12.5,32 Z" fill="${cc.fill}" stroke="${cc.stroke}" stroke-width="1.1"/>`+hi("M13.5,35 Q17,36.5 20.5,35"); break;
+      case 'canine': crown = `<path d="M10.5,32 Q9.5,32 9.5,36 L9.5,51 Q9.5,55 12,57.5 L15.5,61.5 Q17,63.3 18.5,61.5 L22,57.5 Q24.5,55 24.5,51 L24.5,36 Q24.5,32 23.5,32 Q17,30.3 10.5,32 Z" fill="${cc.fill}" stroke="${cc.stroke}" stroke-width="1.1"/>`+hi("M11.5,35 Q17,37 22.5,35"); break;
+      case 'premolar': crown = `<path d="M9,32 Q8,32 8,36 L8,50 Q8,55.5 11.5,57.5 Q14,59 15.7,56.3 Q17,54.5 18.3,56.3 Q20.5,59 23,57 Q26,55 26,50 L26,36 Q26,32 25,32 Q17,30.3 9,32 Z" fill="${cc.fill}" stroke="${cc.stroke}" stroke-width="1.1"/>`+hi("M10,35 Q17,37 25,35"); break;
+      case 'molarUpper': crown = `<path d="M5,32 Q4,32 4,36 L4,49 Q4,54.5 8,56.5 Q10.5,58.3 12.7,55.8 Q14.2,54 15.7,56 Q17,57.8 18.3,56 Q19.8,54 21.3,55.8 Q23.5,58.3 26,56.5 Q30,54.5 30,49 L30,36 Q30,32 29,32 Q17,29.8 5,32 Z" fill="${cc.fill}" stroke="${cc.stroke}" stroke-width="1.1"/>`+hi("M7,42 Q17,45.5 27,42")+hi("M12.5,44 L12.5,55")+hi("M21.5,44 L21.5,55"); break;
+      case 'molarLower': crown = `<path d="M5,32 Q4,32 4,36 L4,49 Q4,54.5 8,56.5 Q10.5,58.3 12.7,55.8 Q14.2,54 15.7,56 Q17,57.8 18.3,56 Q19.8,54 21.3,55.8 Q23.5,58.3 26,56.5 Q30,54.5 30,49 L30,36 Q30,32 29,32 Q17,29.8 5,32 Z" fill="${cc.fill}" stroke="${cc.stroke}" stroke-width="1.1"/>`+hi("M7,42 Q17,45.5 27,42")+hi("M17,44 L17,55"); break;
+      case 'thirdMolarUpper': crown = `<path d="M7,33 Q6,33 6,37 L6,48 Q6,53 9.5,54.8 Q12,56.3 14,54 Q15.5,52.3 17,54 Q18.5,56.3 21,54.8 Q24.5,53 24.5,48 L24.5,37 Q24.5,33 23.5,33 Q17,31 7,33 Z" fill="${cc.fill}" stroke="${cc.stroke}" stroke-width="1.1"/>`+hi("M9,42 Q17,44.5 22,42"); break;
+      case 'thirdMolarLower': crown = `<path d="M7,33 Q6,33 6,37 L6,48 Q6,53 9.5,54.8 Q12,56.3 14,54 Q15.5,52.3 17,54 Q18.5,56.3 21,54.8 Q24.5,53 24.5,48 L24.5,37 Q24.5,33 23.5,33 Q17,31 7,33 Z" fill="${cc.fill}" stroke="${cc.stroke}" stroke-width="1.1"/>`+hi("M9,42 Q17,44.5 22,42"); break;
+    }
+    if(!isRootOnly) crown += cariesOverlay(t) + fillingOverlay(t);
+  }
+  return { root, crown };
+}
+const MISSING_SHAPE = `<path d="M17,10 Q26,10 26,32 Q26,54 17,54 Q8,54 8,32 Q8,10 17,10 Z" fill="none" stroke="#B9B2A6" stroke-width="1.4" stroke-dasharray="3,3"/>`;
+
+/* ===================== DATA MODEL ===================== */
+function typeOf(n){
+  const last = n%10;
+  if(last===1||last===2) return {type:'incisor', subtype:last===1?'central':'lateral'};
+  if(last===3) return {type:'canine', subtype:null};
+  if(last===4||last===5) return {type:'premolar', subtype:last===4?'first':'second'};
+  if(last===6||last===7) return {type:'molar', subtype:last===6?'first':'second'};
+  if(last===8) return {type:'thirdMolar', subtype:null};
+}
+function metaOf(n){
+  const arch = n<30 ? 'upper':'lower';
+  const q = Math.floor(n/10);
+  const side = (q===1||q===4) ? 'right' : 'left';
+  const {type,subtype} = typeOf(n);
+  return {arch, side, type, subtype, category:shapeCategory(n)};
+}
+
+const UPPER_RIGHT=[18,17,16,15,14,13,12,11], UPPER_LEFT=[21,22,23,24,25,26,27,28];
+const LOWER_RIGHT=[48,47,46,45,44,43,42,41], LOWER_LEFT=[31,32,33,34,35,36,37,38];
+const ALL_TEETH=[...UPPER_RIGHT,...UPPER_LEFT,...LOWER_RIGHT,...LOWER_LEFT];
+
+const TEETH = {};
+ALL_TEETH.forEach(n=>{
+  const meta = metaOf(n);
+  TEETH[n] = {
+    toothNumber: String(n),
+    type: meta.type,
+    subtype: meta.subtype,
+    arch: meta.arch,
+    side: meta.side,
+    status: 'healthy',
+    conditions: [],
+    procedures: [],
+    financialPlanItems: [],
+    _hidden: false,
+    _pontic: false,
+    _category: meta.category
+  };
+});
+
+let selectedFdi = null;
+
+/* ===================== RENDER ===================== */
+function toothMarkup(n){
+  const t = TEETH[n];
+  const showMissing = t.status === 'missing' && !t.procedures.includes('implant');
+  const inner = showMissing ? MISSING_SHAPE : (()=>{const p=shapePaths(t._category, t); return p.root+p.crown;})();
+  const isLower = n >= 30;
+  const svgHtml = `
+      <svg viewBox="0 0 34 70" class="tooth-svg${isLower?' flip-v':''}" id="tooth-${n}" data-fdi="${n}" onclick="selectTooth(${n})">
+        <g class="tooth-group" id="group-${n}">
+          <ellipse class="halo" cx="17" cy="34" rx="16" ry="33" fill="none" stroke="var(--select)" stroke-width="2.5"/>
+          <g id="tooth-${n}-root"></g>
+          ${inner}
+        </g>
+      </svg>`;
+  const numHtml = `<span class="tooth-num" id="num-${n}">${n}</span>`;
+  return `<div class="tooth-cell">${isLower ? svgHtml+numHtml : numHtml+svgHtml}</div>`;
+}
+
+function findBridgeSpans(rowNums){
+  const idxs = [];
+  rowNums.forEach((n,i)=>{ if(TEETH[n].procedures.includes('bridge')) idxs.push(i); });
+  const spans = [];
+  for(let k=0;k<idxs.length-1;k++) spans.push([idxs[k], idxs[k+1]]);
+  return spans;
+}
+function computePonticFlags(rowNums){
+  rowNums.forEach(n=>{ TEETH[n]._pontic = false; });
+  const spans = findBridgeSpans(rowNums);
+  spans.forEach(([i,j])=>{
+    for(let k=i+1;k<j;k++){
+      if(TEETH[rowNums[k]].status !== 'missing') TEETH[rowNums[k]]._pontic = true;
+    }
+  });
+  return spans;
+}
+function addBridgeBarDivs(spans, rowNums, containerId, isUpperRow){
+  const container = document.getElementById(containerId);
+  container.querySelectorAll('.bridge-bar').forEach(el=>el.remove());
+  spans.forEach(([i,j])=>{
+    const leftPct = ((i+0.5)/rowNums.length)*100;
+    const rightPct = ((j+0.5)/rowNums.length)*100;
+    const bar = document.createElement('div');
+    bar.className = 'bridge-bar';
+    bar.style.left = leftPct+'%';
+    bar.style.width = (rightPct-leftPct)+'%';
+    bar.style.top = isUpperRow ? '58%' : '34%';
+    container.appendChild(bar);
+  });
+}
+
+function renderRow(nums, elId){
+  const spans = computePonticFlags(nums);
+  document.getElementById(elId).innerHTML = nums.map(n=>toothMarkup(n)).join('');
+  addBridgeBarDivs(spans, nums, elId, elId==='rowUpper');
+}
+function renderAll(){
+  renderRow([...UPPER_RIGHT,...UPPER_LEFT],'rowUpper');
+  renderRow([...LOWER_RIGHT,...LOWER_LEFT],'rowLower');
+  applySelectionStyles();
+  applyHiddenStyles();
+  renderInfoPanel();
+  renderGrandTotal();
+  saveLocal();
+}
+
+function applySelectionStyles(){
+  ALL_TEETH.forEach(n=>{
+    const g = document.getElementById('group-'+n);
+    const num = document.getElementById('num-'+n);
+    if(!g) return;
+    g.classList.toggle('selected', n === selectedFdi);
+    if(num) num.classList.toggle('selected', n === selectedFdi);
+  });
+}
+function applyHiddenStyles(){
+  ALL_TEETH.forEach(n=>{
+    const g = document.getElementById('group-'+n);
+    if(!g) return;
+    g.classList.toggle('hidden', !!TEETH[n]._hidden);
+  });
+}
+
+/* ===================== PUBLIC API ===================== */
+function selectTooth(fdi){
+  selectedFdi = Number(fdi);
+  applySelectionStyles();
+  renderInfoPanel();
+}
+function setStatus(fdi, status){
+  TEETH[fdi].status = status;
+  renderAll();
+  if(selectedFdi===Number(fdi)) selectTooth(fdi);
+}
+function toggleHide(fdi){
+  TEETH[fdi]._hidden = !TEETH[fdi]._hidden;
+  applyHiddenStyles();
+  if(selectedFdi===Number(fdi)) renderInfoPanel();
+}
+function addCondition(fdi, code){
+  TEETH[fdi].conditions.push(code);
+  renderInfoPanel();
+}
+function addFinancialItem(fdi, item){
+  const priced = {
+    procedureId: 'proc_' + Math.random().toString(36).slice(2,8),
+    procedureName: item.name,
+    price: item.price,
+    quantity: item.quantity || 1,
+    discount: item.discount || 0,
+    total: (item.price * (item.quantity||1)) - (item.discount||0)
+  };
+  TEETH[fdi].financialPlanItems.push(priced);
+  renderInfoPanel();
+  renderGrandTotal();
+}
+function getTooth(fdi){ return TEETH[fdi]; }
+function getAllTeeth(){ return TEETH; }
+
+/* ===================== CLINICAL CATALOG (Терапия / Ортопедия / Хирургия) ===================== */
+const CLINICAL_CATEGORIES = [
+  { key:'therapy', label:'Терапия', color:'#3C8577', items:[
+      {code:'caries_superficial', label:'Кариес — поверхностный', kind:'condition'},
+      {code:'caries_medium', label:'Кариес — средний', kind:'condition'},
+      {code:'caries_deep', label:'Кариес — глубокий', kind:'condition'},
+      {code:'filling', label:'Пломба', kind:'condition'},
+      {code:'filling_defect', label:'Пломба (дефект)', kind:'condition'},
+      {code:'pulpitis', label:'Пульпит', kind:'condition'},
+      {code:'periodontitis', label:'Периодонтит', kind:'condition'}
+  ]},
+  { key:'orthopedics', label:'Ортопедия', color:'#B98A2E', items:[
+      {code:'crown', label:'Коронка', kind:'procedure'},
+      {code:'bridge', label:'Мост', kind:'procedure'}
+  ]},
+  { key:'surgery', label:'Хирургия', color:'#A6472F', items:[
+      {code:'rootOnly', label:'Корень (зуб разрушен)', kind:'condition'},
+      {code:'implant', label:'Имплант', kind:'procedure'},
+      {code:'missing', label:'Зуб отсутствует', kind:'status'},
+      {code:'periodontosis', label:'Пародонтоз (убыль кости)', kind:'condition'}
+  ]}
+];
+
+function itemActive(t, item){
+  if(item.kind==='status') return t.status==='missing';
+  const arr = item.kind==='condition' ? t.conditions : t.procedures;
+  return arr.includes(item.code);
+}
+function toggleClinicalItem(fdi, catKey, code){
+  const cat = CLINICAL_CATEGORIES.find(c=>c.key===catKey);
+  const item = cat.items.find(i=>i.code===code);
+  if(item.kind==='status'){
+    setStatus(fdi, TEETH[fdi].status==='missing' ? 'healthy' : 'missing');
+    return;
+  }
+  const t = TEETH[fdi];
+  const arr = item.kind==='condition' ? t.conditions : t.procedures;
+  const idx = arr.indexOf(code);
+  if(idx>=0) arr.splice(idx,1); else arr.push(code);
+  renderAll();
+}
+const openCategories = {};
+function onCategoryToggle(key, isOpen){ openCategories[key] = isOpen; }
+function clinicalCategoryMarkup(fdi, cat){
+  const t = TEETH[fdi];
+  const chips = cat.items.map(it=>{
+    const active = itemActive(t, it);
+    return `<button class="chip ${active?'chip-active':''}" style="--chip-color:${cat.color}" onclick="toggleClinicalItem(${fdi},'${cat.key}','${it.code}')">${it.label}</button>`;
+  }).join('');
+  const openAttr = openCategories[cat.key] ? 'open' : '';
+  return `
+    <details class="cat-accordion" style="--cat-color:${cat.color}" ${openAttr} ontoggle="onCategoryToggle('${cat.key}', this.open)">
+      <summary>${cat.label}</summary>
+      <div class="chip-row">${chips}</div>
+    </details>`;
+}
+/* ===================== TREATMENT PLANS (Локальный / Комплексный / Альтернативный) ===================== */
+const PLAN_DEFS = [
+  {key:'local', title:'Локальный', bg:'#F3DFE3', ink:'#8C4A57'},
+  {key:'complex', title:'Комплексный', bg:'#DCDCDC', ink:'#3A3A3A'},
+  {key:'alternative', title:'Альтернативный', bg:'#DFD8ED', ink:'#5B4A82'}
+];
+const PLAN_CATALOG = [
+  {key:'therapy', label:'Терапия', color:'#3C8577', items:[
+    {code:'hygiene', label:'Проф. гигиена', defaultPrice:6000, allTeeth:true},
+    {code:'hygiene_repeat', label:'Повторная проф. гигиена', defaultPrice:3000, allTeeth:true},
+    {code:'exam', label:'Профилактический осмотр', defaultPrice:1000, allTeeth:true},
+    {code:'consult', label:'Первичная консультация', defaultPrice:1500, allTeeth:true},
+    {code:'whitening', label:'Отбеливание Zoom4', defaultPrice:30000, allTeeth:true},
+    {code:'caries_superficial', label:'Кариес — поверхностный', defaultPrice:6000},
+    {code:'caries_medium', label:'Кариес — средний', defaultPrice:7500},
+    {code:'restoration', label:'Реставрация', defaultPrice:12000},
+    {code:'post_pin', label:'Штифт в канал', defaultPrice:4000},
+    {code:'endo', label:'Первичное эндолечение', defaultPrice:18000},
+    {code:'endo_multi', label:'Первичное эндолечение — многоканальное', defaultPrice:25000},
+    {code:'endo_repeat', label:'Повторное эндолечение', defaultPrice:35000},
+    {code:'periodontitis_tx', label:'Лечение периодонтита', defaultPrice:12000}
+  ]},
+  {key:'orthopedics', label:'Ортопедия', color:'#B98A2E', items:[
+    {code:'crown_zro2', label:'Корона ZrO2', defaultPrice:25000},
+    {code:'crown_zro2_master', label:'Корона ZrO2 (мастер техник)', defaultPrice:35000},
+    {code:'crown_pmma', label:'Коронка Pmma', defaultPrice:8000},
+    {code:'veneer', label:'Винир', defaultPrice:28000},
+    {code:'veneer_master', label:'Винир (мастер техник)', defaultPrice:35000},
+    {code:'temp_crown', label:'Временная коронка прямым методом', defaultPrice:3000},
+    {code:'waxup', label:'Wax up 1 зуба', defaultPrice:2500},
+    {code:'impression', label:'Слепки 1 челюсти', defaultPrice:1500},
+    {code:'bridge', label:'Мост', defaultPrice:30000}
+  ]},
+  {key:'surgery', label:'Хирургия', color:'#A6472F', items:[
+    {code:'extraction_simple', label:'Удаление простое', defaultPrice:6000},
+    {code:'extraction_complex', label:'Удаление сложное', defaultPrice:13000},
+    {code:'implant_osstem', label:'Имплантация Osstem', defaultPrice:25000},
+    {code:'implant_neodent', label:'Имплантация Neodent', defaultPrice:40000},
+    {code:'implant_straumann', label:'Имплантация Straumann', defaultPrice:55000},
+    {code:'sinus_open', label:'Синус-лифтинг открытый', defaultPrice:40000},
+    {code:'sinus_closed', label:'Синус-лифтинг закрытый', defaultPrice:20000},
+    {code:'bone_material_05', label:'Костный материал 0.5 г', defaultPrice:8000},
+    {code:'bone_material_10', label:'Костный материал 1.0 г', defaultPrice:14000},
+    {code:'membrane', label:'Мембрана 25×25', defaultPrice:14000},
+    {code:'periodontosis_tx', label:'Лечение пародонтоза', defaultPrice:10000}
+  ]},
+  {key:'ortho', label:'Ортодонтия', color:'#6E5A96', items:[
+    {code:'braces_metal', label:'Фиксация брекет-системы металлической (1 челюсть)', defaultPrice:90000, allTeeth:true},
+    {code:'mini_screws', label:'Мини-винты', defaultPrice:15000},
+    {code:'arch_activation', label:'Активация (замена дуги)', defaultPrice:7000, allTeeth:true}
+  ]}
+];
+const PLANS = { local:[], complex:[], alternative:[] };
+const openPlanCategories = {};
+const armedProcedure = {};   // planKey -> {catKey, code, item, color} | null
+const activeGroupId = {};    // planKey -> group id currently being filled | null
+
+function armProcedure(planKey, catKey, code){
+  const cat = PLAN_CATALOG.find(c=>c.key===catKey);
+  const item = cat.items.find(i=>i.code===code);
+  if(item.allTeeth){
+    if(!PLANS[planKey].some(g=>g.code===item.code)){
+      const gid = 'g_' + Math.random().toString(36).slice(2,9);
+      PLANS[planKey].push({id:gid, code:item.code, label:item.label, color:cat.color, rows:[{tooth:null, price:item.defaultPrice}]});
+    }
+    renderPlans();
+    return;
+  }
+  const cur = armedProcedure[planKey];
+  if(cur && cur.code === code){ armedProcedure[planKey] = null; }
+  else { armedProcedure[planKey] = {catKey, code, item, color:cat.color}; }
+  activeGroupId[planKey] = null;
+  renderPlans();
+}
+function planToothClick(planKey, tooth){
+  const armed = armedProcedure[planKey];
+  if(!armed) return;
+  let gid = activeGroupId[planKey];
+  let group = gid ? PLANS[planKey].find(g=>g.id===gid) : null;
+  if(!group){
+    gid = 'g_' + Math.random().toString(36).slice(2,9);
+    group = {id:gid, code:armed.code, label:armed.item.label, color:armed.color, rows:[]};
+    PLANS[planKey].push(group);
+    activeGroupId[planKey] = gid;
+  }
+  const idx = group.rows.findIndex(r=>r.tooth===tooth);
+  if(idx>=0){
+    group.rows.splice(idx,1);
+    const arr = TEETH[tooth].financialPlanItems;
+    const ix2 = arr.findIndex(it=>it.procedureId===gid+'_'+tooth);
+    if(ix2>=0) arr.splice(ix2,1);
+    if(group.rows.length===0){
+      PLANS[planKey] = PLANS[planKey].filter(g=>g.id!==gid);
+      activeGroupId[planKey] = null;
+    }
+  } else {
+    group.rows.push({tooth, price:armed.item.defaultPrice});
+    TEETH[tooth].financialPlanItems.push({
+      procedureId: gid+'_'+tooth, procedureName:armed.item.label, price:armed.item.defaultPrice,
+      quantity:1, discount:0, total:armed.item.defaultPrice, plan:planKey
+    });
+  }
+  renderPlans();
+  if(selectedFdi!==null) renderInfoPanel();
+}
+function removePlanGroup(planKey, groupId){
+  const g = PLANS[planKey].find(x=>x.id===groupId);
+  if(g) g.rows.forEach(r=>{
+    if(r.tooth===null) return;
+    const arr = TEETH[r.tooth].financialPlanItems;
+    const idx = arr.findIndex(it=>it.procedureId===groupId+'_'+r.tooth);
+    if(idx>=0) arr.splice(idx,1);
+  });
+  PLANS[planKey] = PLANS[planKey].filter(x=>x.id!==groupId);
+  if(activeGroupId[planKey]===groupId) activeGroupId[planKey] = null;
+  renderPlans();
+  if(selectedFdi!==null) renderInfoPanel();
+}
+function updateRowPrice(planKey, groupId, tooth, value){
+  const price = parseInt(value,10) || 0;
+  const g = PLANS[planKey].find(x=>x.id===groupId);
+  const row = g.rows.find(r=>r.tooth===tooth);
+  row.price = price;
+  if(tooth!==null){
+    const item = TEETH[tooth].financialPlanItems.find(it=>it.procedureId===groupId+'_'+tooth);
+    if(item){ item.price=price; item.total=price*item.quantity - item.discount; }
+  }
+  renderPlanTotal(planKey);
+}
+function planTotal(planKey){
+  return PLANS[planKey].reduce((sum,g)=> sum + g.rows.reduce((s,r)=>s+r.price,0), 0);
+}
+function renderPlanTotal(planKey){
+  const el = document.getElementById('total-'+planKey);
+  if(el) el.textContent = planTotal(planKey).toLocaleString('ru-RU') + ' ₽';
+}
+function planCatalogMarkup(planKey, cat){
+  const armed = armedProcedure[planKey];
+  const chips = cat.items.map(it=>{
+    const isArmed = armed && armed.code===it.code;
+    return `<button class="chip ${isArmed?'chip-armed':''}" style="--chip-color:${cat.color}" onclick="armProcedure('${planKey}','${cat.key}','${it.code}')">${it.label}</button>`;
+  }).join('');
+  const key = planKey+'_'+cat.key;
+  const openAttr = openPlanCategories[key] ? 'open' : '';
+  return `
+    <details class="cat-accordion" style="--cat-color:${cat.color}" ${openAttr} ontoggle="openPlanCategories['${key}']=this.open">
+      <summary>${cat.label}</summary>
+      <div class="chip-row">${chips}</div>
+    </details>`;
+}
+function planGroupMarkup(planKey, g, index){
+  const rows = g.rows.map(r=>{
+    const toothCell = r.tooth===null ? '<span class="plan-row-tooth">—</span>' : `<span class="plan-row-tooth">${r.tooth}</span>`;
+    const toothArg = r.tooth===null ? 'null' : r.tooth;
+    return `<div class="plan-row ${r.done?'row-done':''}">
+      <input type="checkbox" class="row-done-check" ${r.done?'checked':''} title="Выполнено" onchange="toggleRowDone('${planKey}','${g.id}',${toothArg},this.checked)">
+      ${toothCell}<span class="plan-row-name">${g.label}</span>
+      <input type="number" class="plan-row-price" value="${r.price}" onchange="updateRowPrice('${planKey}','${g.id}',${toothArg},this.value)"> ₽</div>`;
+  }).join('');
+  return `
+    <div class="plan-group">
+      <div class="plan-group-head" style="color:${g.color}">
+        <span>${index+1}. ${g.label}</span>
+        <button class="chip-remove no-print" onclick="removePlanGroup('${planKey}','${g.id}')">✕</button>
+      </div>
+      ${rows}
+    </div>`;
+}
+function toggleRowDone(planKey, groupId, tooth, checked){
+  const g = PLANS[planKey].find(x=>x.id===groupId);
+  const row = g.rows.find(r=>r.tooth===tooth);
+  row.done = checked;
+  renderPlans();
+}
+function planToothSVG(planKey, n){
+  const cat = shapeCategory(n);
+  const p = shapePaths(cat, {conditions:[],procedures:[],status:'healthy'});
+  let color = null;
+  for(const g of PLANS[planKey]){ if(g.rows.some(r=>r.tooth===n)){ color = g.color; break; } }
+  const halo = color ? `<ellipse cx="17" cy="34" rx="16" ry="33" fill="none" stroke="${color}" stroke-width="3"/>` : '';
+  const isLower = n >= 30;
+  return `<svg viewBox="0 0 34 70" class="tooth-svg${isLower?' flip-v':''}" onclick="planToothClick('${planKey}',${n})">${p.root}${p.crown}${halo}</svg>`;
+}
+function renderPlanOdontoRow(planKey, nums){
+  return nums.map(n=>{
+    const isLower = n >= 30;
+    const svg = planToothSVG(planKey,n);
+    const num = `<span class="tooth-num">${n}</span>`;
+    return `<div class="tooth-cell">${isLower ? svg+num : num+svg}</div>`;
+  }).join('');
+}
+function planOdontoMarkup(planKey){
+  return `
+    <div class="plan-odonto">
+      <div class="odonto-row mini">${renderPlanOdontoRow(planKey,[...UPPER_RIGHT,...UPPER_LEFT])}</div>
+      <div class="bite-line"></div>
+      <div class="odonto-row mini">${renderPlanOdontoRow(planKey,[...LOWER_RIGHT,...LOWER_LEFT])}</div>
+    </div>`;
+}
+function planProgress(planKey){
+  let total = 0, done = 0;
+  PLANS[planKey].forEach(g => g.rows.forEach(r => { total++; if(r.done) done++; }));
+  const pct = total ? Math.round(done/total*100) : 0;
+  return {pct, done, total};
+}
+function renderPlanBox(def){
+  const catalogHtml = PLAN_CATALOG.map(cat=>planCatalogMarkup(def.key,cat)).join('');
+  const groupsHtml = PLANS[def.key].length
+    ? PLANS[def.key].map((g,i)=>planGroupMarkup(def.key,g,i)).join('')
+    : '<div class="empty">Пока пусто — выберите процедуру и кликните по зубам на схеме ниже.</div>';
+  const armed = armedProcedure[def.key];
+  const armedHint = armed ? `<div class="armed-hint" style="color:${armed.color}">Выбрано: ${armed.item.label} — кликайте по зубам на схеме</div>` : '';
+  const prog = planProgress(def.key);
+  const progressHtml = `
+    <div class="plan-progress">
+      <div class="plan-progress-bar"><div class="plan-progress-fill" style="width:${prog.pct}%; background:${def.ink}"></div></div>
+      <div class="plan-progress-label">Прогресс: ${prog.pct}%${prog.total ? ` (${prog.done} из ${prog.total})` : ''}</div>
+    </div>`;
+  return `
+    <div class="plan-col">
+      <div class="plan-head" style="background:${def.bg}; color:${def.ink}">${def.title}</div>
+      <div class="plan-body">
+        ${progressHtml}
+        <div class="cat-list">${catalogHtml}</div>
+        ${armedHint}
+        ${planOdontoMarkup(def.key)}
+        <div class="plan-groups">${groupsHtml}</div>
+        <div class="plan-total"><span>Итого</span><span id="total-${def.key}">${planTotal(def.key).toLocaleString('ru-RU')} ₽</span></div>
+      </div>
+    </div>`;
+}
+function renderPlans(){
+  document.getElementById('plansRow').innerHTML = PLAN_DEFS.map(renderPlanBox).join('');
+  saveLocal();
+}
+
+const TYPE_LABELS = {incisor:'резец', canine:'клык', premolar:'премоляр', molar:'моляр', thirdMolar:'зуб мудрости'};
+const SUBTYPE_LABELS = {central:'центральный', lateral:'боковой', first:'первый', second:'второй'};
+const ARCH_LABELS = {upper:'верхняя челюсть', lower:'нижняя челюсть'};
+const SIDE_LABELS = {right:'правая сторона', left:'левая сторона'};
+function codeLabel(code){
+  for(const cat of CLINICAL_CATEGORIES){ const it = cat.items.find(i=>i.code===code); if(it) return it.label; }
+  return code;
+}
+function renderInfoPanel(){
+  const body = document.getElementById('infoBody');
+  if(selectedFdi === null){ body.innerHTML = '<div class="empty">Кликните по зубу на схеме.</div>'; return; }
+  const t = TEETH[selectedFdi];
+  const categoriesHtml = CLINICAL_CATEGORIES.map(cat => clinicalCategoryMarkup(selectedFdi, cat)).join('');
+
+  const typeLine = `${SUBTYPE_LABELS[t.subtype] ? SUBTYPE_LABELS[t.subtype]+' ' : ''}${TYPE_LABELS[t.type]}, ${ARCH_LABELS[t.arch]}, ${SIDE_LABELS[t.side]}`;
+  const statusLine = t.status === 'missing' ? 'отсутствует' : 'на месте';
+  const condHtml = t.conditions.length
+    ? t.conditions.map(c=>`<li>${codeLabel(c)}</li>`).join('')
+    : '<li class="empty-inline">нет</li>';
+  const procHtml = t.procedures.length
+    ? t.procedures.map(c=>`<li>${codeLabel(c)}</li>`).join('')
+    : '<li class="empty-inline">нет</li>';
+  const plansHtml = t.financialPlanItems.length
+    ? t.financialPlanItems.map(it=>{
+        const planLabel = PLAN_DEFS.find(p=>p.key===it.plan)?.title || it.plan;
+        return `<li>${planLabel}: ${it.procedureName} — ${it.price.toLocaleString('ru-RU')} ₽</li>`;
+      }).join('')
+    : '<li class="empty-inline">не включён ни в один план</li>';
+
+  body.innerHTML = `
+    <div class="cat-list">${categoriesHtml}</div>
+    <div class="tooth-summary">
+      <div class="summary-line"><b>Зуб ${t.toothNumber}</b> — ${typeLine}</div>
+      <div class="summary-line">Статус: ${statusLine}</div>
+      <div class="summary-block"><span class="summary-label">Диагнозы:</span><ul>${condHtml}</ul></div>
+      <div class="summary-block"><span class="summary-label">Процедуры:</span><ul>${procHtml}</ul></div>
+      <div class="summary-block"><span class="summary-label">В планах лечения:</span><ul>${plansHtml}</ul></div>
+    </div>
+    <div class="actions">
+      <button class="btn-ghost" onclick="toggleHide(${selectedFdi})">${t._hidden?'Показать зуб':'Скрыть зуб'}</button>
+      <button class="btn-primary" onclick="promptFinancialItem(${selectedFdi})">+ Позиция в план лечения</button>
+    </div>`;
+}
+function promptFinancialItem(fdi){
+  const name = prompt('Название процедуры (например: Лечение кариеса)');
+  if(!name) return;
+  const priceStr = prompt('Стоимость, ₽', '5000');
+  const price = parseInt(priceStr,10) || 0;
+  addFinancialItem(fdi, {name, price});
+}
+function renderGrandTotal(){
+  let total = 0;
+  ALL_TEETH.forEach(n=>{
+    TEETH[n].financialPlanItems.forEach(it=> total += it.total);
+  });
+  document.getElementById('grandTotal').textContent = total.toLocaleString('ru-RU') + ' ₽';
+}
+
+async function downloadImage(){
+  document.body.classList.add('exporting');
+  await new Promise(r=>setTimeout(r,50));
+  try{
+    const canvas = await html2canvas(document.querySelector('.wrap'), {backgroundColor:'#F7F5F1', scale:2});
+    const link = document.createElement('a');
+    const patientName = document.querySelector('.case-field [contenteditable]')?.textContent.trim() || 'plan';
+    link.download = `plan-lecheniya-${patientName}.png`.replace(/\s+/g,'_');
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  } finally {
+    document.body.classList.remove('exporting');
+  }
+}
+
+const LOCAL_KEY = 'dentalChartState_v1';
+function saveLocal(){
+  try{
+    localStorage.setItem(LOCAL_KEY, JSON.stringify({teeth:TEETH, plans:PLANS}));
+  }catch(e){ /* storage unavailable — skip silently */ }
+}
+function loadLocal(){
+  try{
+    const raw = localStorage.getItem(LOCAL_KEY);
+    if(!raw) return;
+    const data = JSON.parse(raw);
+    if(data.teeth){
+      Object.keys(data.teeth).forEach(k=>{
+        if(TEETH[k]) Object.assign(TEETH[k], data.teeth[k]);
+      });
+    }
+    if(data.plans){
+      Object.keys(data.plans).forEach(k=>{
+        if(k in PLANS) PLANS[k] = data.plans[k];
+      });
+    }
+  }catch(e){ /* corrupt/unavailable — start fresh */ }
+}
+
+function startNewPatient(){
+  if(!confirm('Очистить всё и начать новый бланк? Несохранённые данные текущего пациента будут потеряны — если нужно, сначала скачайте PDF/картинку.')) return;
+
+  ALL_TEETH.forEach(n=>{
+    const meta = metaOf(n);
+    TEETH[n] = {
+      toothNumber: String(n), type: meta.type, subtype: meta.subtype, arch: meta.arch, side: meta.side,
+      status: 'healthy', conditions: [], procedures: [], financialPlanItems: [],
+      _hidden: false, _pontic: false, _category: meta.category
+    };
+  });
+  PLANS.local = []; PLANS.complex = []; PLANS.alternative = [];
+  Object.keys(armedProcedure).forEach(k=> armedProcedure[k]=null);
+  Object.keys(activeGroupId).forEach(k=> activeGroupId[k]=null);
+  selectedFdi = null;
+
+  document.querySelectorAll('.case-field [contenteditable]').forEach((el,i)=>{
+    if(i===2) return; // дату не трогаем
+    el.textContent = 'Фамилия Имя Отчество';
+  });
+
+  try{ localStorage.removeItem(LOCAL_KEY); }catch(e){}
+  renderAll();
+  renderPlans();
+}
+
+function getCaseFields(){
+  const fields = document.querySelectorAll('.case-field [contenteditable]');
+  return { patient: fields[0]?.textContent.trim()||'', doctor: fields[1]?.textContent.trim()||'', date: fields[2]?.textContent.trim()||'' };
+}
+function savePatientFile(){
+  const case_ = getCaseFields();
+  const payload = { savedAt: new Date().toISOString(), case: case_, teeth: TEETH, plans: PLANS };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+  const link = document.createElement('a');
+  const safeName = (case_.patient || 'patient').replace(/\s+/g,'_');
+  link.download = `karta-${safeName}.json`;
+  link.href = URL.createObjectURL(blob);
+  link.click();
+  setTimeout(()=>URL.revokeObjectURL(link.href), 2000);
+}
+function loadPatientFile(file){
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const data = JSON.parse(reader.result);
+      if(data.teeth){
+        Object.keys(data.teeth).forEach(k=>{ if(TEETH[k]) Object.assign(TEETH[k], data.teeth[k]); });
+      }
+      if(data.plans){
+        Object.keys(data.plans).forEach(k=>{ if(k in PLANS) PLANS[k] = data.plans[k]; });
+      }
+      if(data.case){
+        const fields = document.querySelectorAll('.case-field [contenteditable]');
+        if(fields[0] && data.case.patient) fields[0].textContent = data.case.patient;
+        if(fields[1] && data.case.doctor) fields[1].textContent = data.case.doctor;
+        if(fields[2] && data.case.date) fields[2].textContent = data.case.date;
+      }
+      selectedFdi = null;
+      renderAll();
+      renderPlans();
+      alert('Карта пациента загружена.');
+    }catch(e){
+      alert('Не удалось прочитать файл — убедитесь, что это файл, сохранённый этим же инструментом.');
+    }
+  };
+  reader.readAsText(file);
+}
+
+document.querySelectorAll('.case-field [contenteditable]').forEach(el=>{
+  el.addEventListener('focus', ()=>{
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  });
+});
+document.getElementById('caseDate').textContent = new Date().toLocaleDateString('ru-RU');
+loadLocal();
+renderAll();
+renderPlans();
+</script>
+</body>
+</html>
