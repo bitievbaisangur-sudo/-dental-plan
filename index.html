@@ -116,10 +116,12 @@
   .plan-group{border:1px solid var(--line); border-radius:8px; padding:8px 10px;}
   .plan-group-head{display:flex; justify-content:space-between; align-items:center; font-weight:700; font-size:0.82rem; margin-bottom:6px;}
   .chip-remove{background:none; border:none; cursor:pointer; color:var(--ink-soft); font-size:0.85rem; padding:2px 4px;}
+  .chip-remove:disabled{opacity:0.25; cursor:default;}
   .plan-row{display:flex; align-items:center; gap:8px; font-size:0.82rem; padding:3px 0;}
   .plan-row-tooth{font-weight:700; width:24px; flex-shrink:0;}
   .plan-row-name{flex:1; color:var(--ink-soft);}
   .plan-row-price{width:64px; border:1px solid var(--line); border-radius:6px; padding:2px 5px; font-size:0.82rem; font-family:inherit;}
+  .plan-row-qty{width:48px; border:1px solid var(--line); border-radius:6px; padding:2px 5px; font-size:0.82rem; font-family:inherit; margin-left:2px;}
   .plan-total{display:flex; justify-content:space-between; margin-top:10px; padding-top:8px; border-top:2px solid var(--ink); font-weight:700; font-size:0.9rem;}
   @media (max-width:820px){ .plans-row{flex-direction:column;} .plan-col{min-width:0;} }
 @media print{
@@ -131,6 +133,7 @@
   .plans-row{ flex-direction:row; }
   .plan-col{ min-width:0; break-inside:avoid; }
   .plan-row-price{ border:none !important; background:none !important; padding:0 !important; width:auto !important; }
+  .plan-row-qty{ border:none !important; background:none !important; padding:0 !important; width:auto !important; }
   input[type=number]::-webkit-inner-spin-button{ -webkit-appearance:none; }
 }
 </style>
@@ -198,6 +201,48 @@
 </div>
 
 <script>
+/* ===================== CUSTOM MODALS (не зависят от браузерных prompt/confirm/alert) ===================== */
+function showModal(innerHtml){
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px;';
+  overlay.innerHTML = `<div style="background:#fff;border-radius:12px;padding:20px;max-width:340px;width:100%;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#22303C;box-shadow:0 10px 40px rgba(0,0,0,0.2);">${innerHtml}</div>`;
+  document.body.appendChild(overlay);
+  return overlay;
+}
+function customPrompt(message, defaultValue, cb){
+  const overlay = showModal(`
+    <div style="margin-bottom:10px;font-weight:600;font-size:0.92rem;">${message}</div>
+    <input type="text" id="cpInput" value="${defaultValue||''}" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #DCD6C9;border-radius:6px;margin-bottom:14px;font-size:0.9rem;">
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button id="cpCancel" style="padding:7px 14px;border-radius:6px;border:1px solid #22303C;background:none;color:#22303C;cursor:pointer;font-weight:600;">Отмена</button>
+      <button id="cpOk" style="padding:7px 14px;border-radius:6px;border:none;background:#22303C;color:#fff;cursor:pointer;font-weight:600;">ОК</button>
+    </div>`);
+  const input = overlay.querySelector('#cpInput');
+  setTimeout(()=>{ input.focus(); input.select(); }, 30);
+  const close = (val)=>{ overlay.remove(); cb(val); };
+  overlay.querySelector('#cpOk').onclick = ()=> close(input.value);
+  overlay.querySelector('#cpCancel').onclick = ()=> close(null);
+  input.addEventListener('keydown', e=>{ if(e.key==='Enter') close(input.value); if(e.key==='Escape') close(null); });
+}
+function customConfirm(message, okLabel, cb){
+  const overlay = showModal(`
+    <div style="margin-bottom:16px;font-size:0.9rem;">${message}</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button id="ccCancel" style="padding:7px 14px;border-radius:6px;border:1px solid #22303C;background:none;color:#22303C;cursor:pointer;font-weight:600;">Отмена</button>
+      <button id="ccOk" style="padding:7px 14px;border-radius:6px;border:none;background:#A6472F;color:#fff;cursor:pointer;font-weight:600;">${okLabel}</button>
+    </div>`);
+  overlay.querySelector('#ccOk').onclick = ()=>{ overlay.remove(); cb(true); };
+  overlay.querySelector('#ccCancel').onclick = ()=>{ overlay.remove(); cb(false); };
+}
+function customAlert(message){
+  const overlay = showModal(`
+    <div style="margin-bottom:16px;font-size:0.9rem;">${message}</div>
+    <div style="display:flex;justify-content:flex-end;">
+      <button id="caOk" style="padding:7px 14px;border-radius:6px;border:none;background:#22303C;color:#fff;cursor:pointer;font-weight:600;">ОК</button>
+    </div>`);
+  overlay.querySelector('#caOk').onclick = ()=> overlay.remove();
+}
+
 /* ===================== ANATOMY LAYER (shape generation) ===================== */
 function shapeCategory(n){
   const last = n % 10;
@@ -583,9 +628,9 @@ const PLAN_CATALOG = [
     {code:'periodontosis_tx', label:'Лечение пародонтоза', defaultPrice:10000}
   ]},
   {key:'ortho', label:'Ортодонтия', color:'#6E5A96', items:[
-    {code:'braces_metal', label:'Фиксация брекет-системы металлической (1 челюсть)', defaultPrice:90000, allTeeth:true},
+    {code:'braces_metal', label:'Фиксация брекет-системы металлической', defaultPrice:90000, allTeeth:true},
     {code:'mini_screws', label:'Мини-винты', defaultPrice:15000},
-    {code:'arch_activation', label:'Активация (замена дуги)', defaultPrice:7000, allTeeth:true}
+    {code:'arch_activation', label:'Активация (замена дуги)', defaultPrice:7000, askQty:true}
   ]}
 ];
 const PLANS = { local:[], complex:[], alternative:[] };
@@ -596,6 +641,17 @@ const activeGroupId = {};    // planKey -> group id currently being filled | nul
 function armProcedure(planKey, catKey, code){
   const cat = PLAN_CATALOG.find(c=>c.key===catKey);
   const item = cat.items.find(i=>i.code===code);
+  if(item.askQty){
+    customPrompt(`Сколько раз (примерное количество) — «${item.label}»?`, '24', (qtyStr)=>{
+      if(qtyStr===null) return;
+      const qty = parseInt(qtyStr,10);
+      if(!qty || qty<1) return;
+      const gid = 'g_' + Math.random().toString(36).slice(2,9);
+      PLANS[planKey].push({id:gid, code:item.code, label:item.label, color:cat.color, rows:[{tooth:null, price:item.defaultPrice, qty}]});
+      renderPlans();
+    });
+    return;
+  }
   if(item.allTeeth){
     if(!PLANS[planKey].some(g=>g.code===item.code)){
       const gid = 'g_' + Math.random().toString(36).slice(2,9);
@@ -663,10 +719,10 @@ function updateRowPrice(planKey, groupId, tooth, value){
     const item = TEETH[tooth].financialPlanItems.find(it=>it.procedureId===groupId+'_'+tooth);
     if(item){ item.price=price; item.total=price*item.quantity - item.discount; }
   }
-  renderPlanTotal(planKey);
+  renderPlans();
 }
 function planTotal(planKey){
-  return PLANS[planKey].reduce((sum,g)=> sum + g.rows.reduce((s,r)=>s+r.price,0), 0);
+  return PLANS[planKey].reduce((sum,g)=> sum + g.rows.reduce((s,r)=>s+r.price*(r.qty||1),0), 0);
 }
 function renderPlanTotal(planKey){
   const el = document.getElementById('total-'+planKey);
@@ -686,23 +742,50 @@ function planCatalogMarkup(planKey, cat){
       <div class="chip-row">${chips}</div>
     </details>`;
 }
-function planGroupMarkup(planKey, g, index){
+function planGroupMarkup(planKey, g, index, total){
   const rows = g.rows.map(r=>{
     const toothCell = r.tooth===null ? '<span class="plan-row-tooth">—</span>' : `<span class="plan-row-tooth">${r.tooth}</span>`;
     const toothArg = r.tooth===null ? 'null' : r.tooth;
+    const hasQty = r.qty !== undefined;
+    const priceInput = `<input type="number" class="plan-row-price" value="${r.price}" onchange="updateRowPrice('${planKey}','${g.id}',${toothArg},this.value)">`;
+    const tail = hasQty
+      ? ` ₽ × <input type="number" class="plan-row-qty" value="${r.qty}" onchange="updateRowQty('${planKey}','${g.id}',${toothArg},this.value)"> = <b>${(r.price*r.qty).toLocaleString('ru-RU')} ₽</b>`
+      : ` ₽`;
     return `<div class="plan-row ${r.done?'row-done':''}">
       <input type="checkbox" class="row-done-check" ${r.done?'checked':''} title="Выполнено" onchange="toggleRowDone('${planKey}','${g.id}',${toothArg},this.checked)">
       ${toothCell}<span class="plan-row-name">${g.label}</span>
-      <input type="number" class="plan-row-price" value="${r.price}" onchange="updateRowPrice('${planKey}','${g.id}',${toothArg},this.value)"> ₽</div>`;
+      ${priceInput}${tail}</div>`;
   }).join('');
+  const upDisabled = index===0 ? 'disabled' : '';
+  const downDisabled = index===total-1 ? 'disabled' : '';
   return `
     <div class="plan-group">
       <div class="plan-group-head" style="color:${g.color}">
         <span>${index+1}. ${g.label}</span>
-        <button class="chip-remove no-print" onclick="removePlanGroup('${planKey}','${g.id}')">✕</button>
+        <span class="no-print" style="display:flex; gap:2px;">
+          <button class="chip-remove" ${upDisabled} onclick="moveGroup('${planKey}','${g.id}',-1)">↑</button>
+          <button class="chip-remove" ${downDisabled} onclick="moveGroup('${planKey}','${g.id}',1)">↓</button>
+          <button class="chip-remove" onclick="removePlanGroup('${planKey}','${g.id}')">✕</button>
+        </span>
       </div>
       ${rows}
     </div>`;
+}
+function updateRowQty(planKey, groupId, tooth, value){
+  const qty = parseInt(value,10) || 1;
+  const g = PLANS[planKey].find(x=>x.id===groupId);
+  const row = g.rows.find(r=>r.tooth===tooth);
+  row.qty = qty;
+  renderPlans();
+}
+function moveGroup(planKey, groupId, dir){
+  const arr = PLANS[planKey];
+  const idx = arr.findIndex(g=>g.id===groupId);
+  const newIdx = idx + dir;
+  if(newIdx<0 || newIdx>=arr.length) return;
+  const [item] = arr.splice(idx,1);
+  arr.splice(newIdx,0,item);
+  renderPlans();
 }
 function toggleRowDone(planKey, groupId, tooth, checked){
   const g = PLANS[planKey].find(x=>x.id===groupId);
@@ -744,7 +827,7 @@ function planProgress(planKey){
 function renderPlanBox(def){
   const catalogHtml = PLAN_CATALOG.map(cat=>planCatalogMarkup(def.key,cat)).join('');
   const groupsHtml = PLANS[def.key].length
-    ? PLANS[def.key].map((g,i)=>planGroupMarkup(def.key,g,i)).join('')
+    ? PLANS[def.key].map((g,i,arr)=>planGroupMarkup(def.key,g,i,arr.length)).join('')
     : '<div class="empty">Пока пусто — выберите процедуру и кликните по зубам на схеме ниже.</div>';
   const armed = armedProcedure[def.key];
   const armedHint = armed ? `<div class="armed-hint" style="color:${armed.color}">Выбрано: ${armed.item.label} — кликайте по зубам на схеме</div>` : '';
@@ -816,11 +899,14 @@ function renderInfoPanel(){
     </div>`;
 }
 function promptFinancialItem(fdi){
-  const name = prompt('Название процедуры (например: Лечение кариеса)');
-  if(!name) return;
-  const priceStr = prompt('Стоимость, ₽', '5000');
-  const price = parseInt(priceStr,10) || 0;
-  addFinancialItem(fdi, {name, price});
+  customPrompt('Название процедуры (например: Лечение кариеса)', '', (name)=>{
+    if(!name) return;
+    customPrompt('Стоимость, ₽', '5000', (priceStr)=>{
+      if(priceStr===null) return;
+      const price = parseInt(priceStr,10) || 0;
+      addFinancialItem(fdi, {name, price});
+    });
+  });
 }
 function renderGrandTotal(){
   let total = 0;
@@ -870,29 +956,30 @@ function loadLocal(){
 }
 
 function startNewPatient(){
-  if(!confirm('Очистить всё и начать новый бланк? Несохранённые данные текущего пациента будут потеряны — если нужно, сначала скачайте PDF/картинку.')) return;
+  customConfirm('Очистить всё и начать новый бланк? Несохранённые данные текущего пациента будут потеряны — если нужно, сначала скачайте PDF/картинку.', 'Да, очистить', (ok)=>{
+    if(!ok) return;
+    ALL_TEETH.forEach(n=>{
+      const meta = metaOf(n);
+      TEETH[n] = {
+        toothNumber: String(n), type: meta.type, subtype: meta.subtype, arch: meta.arch, side: meta.side,
+        status: 'healthy', conditions: [], procedures: [], financialPlanItems: [],
+        _hidden: false, _pontic: false, _category: meta.category
+      };
+    });
+    PLANS.local = []; PLANS.complex = []; PLANS.alternative = [];
+    Object.keys(armedProcedure).forEach(k=> armedProcedure[k]=null);
+    Object.keys(activeGroupId).forEach(k=> activeGroupId[k]=null);
+    selectedFdi = null;
 
-  ALL_TEETH.forEach(n=>{
-    const meta = metaOf(n);
-    TEETH[n] = {
-      toothNumber: String(n), type: meta.type, subtype: meta.subtype, arch: meta.arch, side: meta.side,
-      status: 'healthy', conditions: [], procedures: [], financialPlanItems: [],
-      _hidden: false, _pontic: false, _category: meta.category
-    };
+    document.querySelectorAll('.case-field [contenteditable]').forEach((el,i)=>{
+      if(i===2) return; // дату не трогаем
+      el.textContent = 'Фамилия Имя Отчество';
+    });
+
+    try{ localStorage.removeItem(LOCAL_KEY); }catch(e){}
+    renderAll();
+    renderPlans();
   });
-  PLANS.local = []; PLANS.complex = []; PLANS.alternative = [];
-  Object.keys(armedProcedure).forEach(k=> armedProcedure[k]=null);
-  Object.keys(activeGroupId).forEach(k=> activeGroupId[k]=null);
-  selectedFdi = null;
-
-  document.querySelectorAll('.case-field [contenteditable]').forEach((el,i)=>{
-    if(i===2) return; // дату не трогаем
-    el.textContent = 'Фамилия Имя Отчество';
-  });
-
-  try{ localStorage.removeItem(LOCAL_KEY); }catch(e){}
-  renderAll();
-  renderPlans();
 }
 
 function getCaseFields(){
@@ -931,9 +1018,9 @@ function loadPatientFile(file){
       selectedFdi = null;
       renderAll();
       renderPlans();
-      alert('Карта пациента загружена.');
+      customAlert('Карта пациента загружена.');
     }catch(e){
-      alert('Не удалось прочитать файл — убедитесь, что это файл, сохранённый этим же инструментом.');
+      customAlert('Не удалось прочитать файл — убедитесь, что это файл, сохранённый этим же инструментом.');
     }
   };
   reader.readAsText(file);
