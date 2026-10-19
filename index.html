@@ -269,14 +269,18 @@ const CROWN_FILL='url(#enamelGrad)', CROWN_STROKE='#B7A98C';
 
 function singleRoot(rw, apexY, colors, showPerio){
   const bx1=17-rw, bx2=17+rw, midY=(34+apexY)/2;
-  const canal = `<line x1="17" y1="32" x2="17" y2="${apexY+3}" stroke="${colors.canal}" stroke-width="0.8" opacity="0.5"/>`;
+  const canal = colors.endo
+    ? filledCanal(`M17,33 L17,${apexY+3}`)
+    : `<line x1="17" y1="32" x2="17" y2="${apexY+3}" stroke="${colors.canal}" stroke-width="0.8" opacity="0.5"/>`;
   const perio = showPerio ? periodontitisMarker(17, apexY) : '';
   return `<path d="M${bx1},34 Q${17-rw*0.75},${midY} 17,${apexY} Q${17+rw*0.75},${midY} ${bx2},34 Z" fill="${colors.fill}" stroke="${colors.stroke}" stroke-width="1"/>${canal}${perio}`;
 }
 function prongRoot(bx1,bx2,ax,ay,colors,showPerio){
   const midY=(34+ay)/2;
   const perio = showPerio ? periodontitisMarker(ax, ay) : '';
-  return `<path d="M${bx1},34 Q${bx1+(ax-bx1)*0.4},${midY} ${ax},${ay} Q${bx2+(ax-bx2)*0.4},${midY} ${bx2},34 Z" fill="${colors.fill}" stroke="${colors.stroke}" stroke-width="1"/>${perio}`;
+  const cx = (bx1+bx2)/2;
+  const canal = colors.endo ? filledCanal(`M${cx},33 Q${cx+(ax-cx)*0.4},${(33+ay+3)/2} ${ax},${ay+3}`) : '';
+  return `<path d="M${bx1},34 Q${bx1+(ax-bx1)*0.4},${midY} ${ax},${ay} Q${bx2+(ax-bx2)*0.4},${midY} ${bx2},34 Z" fill="${colors.fill}" stroke="${colors.stroke}" stroke-width="1"/>${canal}${perio}`;
 }
 function periodontitisMarker(cx, apexY){
   return `<circle cx="${cx}" cy="${apexY}" r="3" fill="#3C8577"/><circle cx="${cx}" cy="${apexY}" r="5.5" fill="none" stroke="#3C8577" stroke-width="1" stroke-dasharray="1.5,1.5" opacity="0.65"/>`;
@@ -284,8 +288,14 @@ function periodontitisMarker(cx, apexY){
 function hi(d){ return `<path d="${d}" fill="none" stroke="#fff" stroke-width="1" opacity="0.55"/>`; }
 
 function rootColorsFor(t){
-  if(t.conditions.includes('pulpitis')) return {fill:'#9C4040', stroke:'#7A2424', canal:'#6E1F1F'};
-  return {fill:ROOT_FILL, stroke:ROOT_STROKE, canal:'#C9A876'};
+  const endo = t.conditions.includes('endo_treated');
+  if(t.conditions.includes('pulpitis')) return {fill:'#9C4040', stroke:'#7A2424', canal:'#6E1F1F', endo};
+  return {fill:ROOT_FILL, stroke:ROOT_STROKE, canal:'#C9A876', endo};
+}
+// Канал, запломбированный белой массой: серый контур + белая заливка
+function filledCanal(d){
+  return `<path d="${d}" fill="none" stroke="#8F8574" stroke-width="2.6" stroke-linecap="round" opacity="0.7"/>
+          <path d="${d}" fill="none" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round"/>`;
 }
 function crownColorsFor(t){
   if(t.procedures.includes('crown') || t._pontic) return {fill:'#DCEBF7', stroke:'#4E7FA6'};
@@ -538,7 +548,8 @@ const CLINICAL_CATEGORIES = [
       {code:'filling', label:'Пломба', kind:'condition'},
       {code:'filling_defect', label:'Пломба (дефект)', kind:'condition'},
       {code:'pulpitis', label:'Пульпит', kind:'condition'},
-      {code:'periodontitis', label:'Периодонтит', kind:'condition'}
+      {code:'periodontitis', label:'Периодонтит', kind:'condition'},
+      {code:'endo_treated', label:'Эндо пролечен', kind:'condition'}
   ]},
   { key:'orthopedics', label:'Ортопедия', color:'#B98A2E', items:[
       {code:'crown', label:'Коронка', kind:'procedure'},
