@@ -127,18 +127,44 @@
   .plan-total-sub{font-size:0.72rem; color:var(--ink-soft); margin-top:4px; text-align:right;}
   .plan-total{display:flex; justify-content:space-between; margin-top:10px; padding-top:8px; border-top:2px solid var(--ink); font-weight:700; font-size:0.9rem;}
   @media (max-width:820px){ .plans-row{flex-direction:column;} .plan-col{min-width:0;} }
+/* ===== Документ для PNG и PDF (отдельный чистый вид, не рабочий интерфейс) ===== */
+.export-doc{display:none; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; color:#22303C; background:#fff; width:1100px; padding:36px 40px 26px; box-sizing:border-box; line-height:1.4;}
+.export-doc.capturing{display:block; position:absolute; top:0; left:0; z-index:99999;}
+.ex-top{display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid #22303C; padding-bottom:14px; margin-bottom:6px;}
+.ex-brand{font-size:13px; letter-spacing:0.16em; text-transform:uppercase; color:#5B6670; font-weight:700;}
+.ex-title{font-family:Georgia,"Times New Roman",serif; font-size:32px; margin-top:4px;}
+.ex-meta{text-align:right; font-size:14px; line-height:1.75;}
+.ex-meta span{color:#5B6670;}
+.ex-sec{font-family:Georgia,"Times New Roman",serif; font-size:19px; margin:22px 0 10px;}
+.ex-chart{border:1px solid #DCD6C9; border-radius:12px; padding:12px 10px 8px; background:#fff;}
+.ex-chart svg{display:block; width:100%; height:auto;}
+.ex-side{display:flex; justify-content:space-between; font-size:12px; color:#5B6670; padding:2px 5% 0;}
+.ex-diag{margin-top:12px; font-size:13.5px; line-height:1.6; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:4px 24px;}
+.ex-diag b{font-weight:700;}
+.ex-plans{display:grid; gap:16px; align-items:start;}
+.ex-plan{border:1px solid #DCD6C9; border-radius:12px; overflow:hidden; background:#fff;}
+.ex-plan-head{padding:11px 14px; font-family:Georgia,"Times New Roman",serif; font-size:18px; text-align:center;}
+.ex-plan-body{padding:6px 16px 14px;}
+.ex-group{padding:10px 0; border-bottom:1px solid #EEE9DF;}
+.ex-group:last-child{border-bottom:none;}
+.ex-g-row{display:flex; justify-content:space-between; align-items:baseline; gap:12px; font-size:14px; font-weight:700;}
+.ex-g-name{flex:1;}
+.ex-g-sum{white-space:nowrap; text-align:right; font-variant-numeric:tabular-nums;}
+.ex-g-sub{font-size:12.5px; color:#5B6670; margin-top:3px; line-height:1.5;}
+.ex-g-done .ex-g-name{text-decoration:line-through; color:#8A9096;}
+.ex-total{display:flex; justify-content:space-between; align-items:baseline; margin-top:6px; padding-top:10px; border-top:2px solid #22303C; font-size:16px; font-weight:700;}
+.ex-total-sub{font-size:12.5px; color:#5B6670; margin-top:4px; text-align:right;}
+.ex-empty{font-size:14px; color:#5B6670;}
+.ex-foot{margin-top:22px; padding-top:12px; border-top:1px solid #DCD6C9; font-size:12px; color:#5B6670; text-align:center;}
+
 @media print{
   @page{ size: A4 landscape; margin: 10mm; }
-  body{ padding:0; background:#fff; }
-  .no-print, .cat-list, .armed-hint, .plan-odonto, .chip-remove, .below { display:none !important; }
-  .case-header{ border:none; padding:0 0 10px; margin-bottom:10px; }
-  .case-header button{ display:none; }
-  .plans-row{ flex-direction:row; }
-  .plan-col{ min-width:0; break-inside:avoid; }
-  .plan-row-price{ border:none !important; background:none !important; padding:0 !important; width:auto !important; min-width:52px !important; text-align:right; }
-  .plan-row-qty{ border:none !important; background:none !important; padding:0 !important; width:auto !important; min-width:26px !important; text-align:right; }
-  .plan-row{ flex-wrap:wrap; row-gap:2px; }
-  input[type=number]::-webkit-inner-spin-button{ -webkit-appearance:none; }
+  body{ padding:0 !important; background:#fff !important; }
+  .wrap{ display:none !important; }
+  .export-doc{ display:block !important; width:auto; padding:0; }
+  .ex-group, .ex-top{ break-inside:avoid; }
+  .ex-plans-wrap{ break-inside:avoid; }
+  .ex-plan{ break-inside:auto; }
 }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -163,7 +189,7 @@
     <div class="case-field"><label>Пациент (ФИО)</label><div contenteditable="true">Фамилия Имя Отчество</div></div>
     <div class="case-field"><label>Врач (ФИО)</label><div contenteditable="true">Фамилия Имя Отчество</div></div>
     <div class="case-field"><label>Дата</label><div contenteditable="true" id="caseDate"></div></div>
-    <button class="btn-primary no-print" onclick="window.print()">Скачать PDF / Печать</button>
+    <button class="btn-primary no-print" onclick="printPlan()">Скачать PDF / Печать</button>
     <button class="btn-ghost no-print" onclick="downloadImage()">Скачать картинку (PNG)</button>
     <button class="btn-ghost no-print" onclick="savePatientFile()">Сохранить карту (файл)</button>
     <button class="btn-ghost no-print" onclick="document.getElementById('loadFileInput').click()">Открыть карту (файл)</button>
@@ -203,6 +229,8 @@
   <h2 class="plans-title">Планы лечения</h2>
   <div class="plans-row" id="plansRow"></div>
 </div>
+
+<div class="export-doc" id="exportDoc"></div>
 
 <script>
 /* ===================== CUSTOM MODALS (не зависят от браузерных prompt/confirm/alert) ===================== */
@@ -939,18 +967,132 @@ function renderGrandTotal(){
   document.getElementById('grandTotal').textContent = total.toLocaleString('ru-RU') + ' ₽';
 }
 
+/* ===================== ДОКУМЕНТ ДЛЯ ПЕЧАТИ И КАРТИНКИ ===================== */
+const CLINIC_NAME = 'Bitiev Dental Group';
+function esc(str){ const d=document.createElement('div'); d.textContent=String(str); return d.innerHTML; }
+function fmtRub(n){ return n.toLocaleString('ru-RU') + ' ₽'; }
+
+// Вся зубная формула одним самодостаточным SVG (градиенты внутри — поэтому заливка не пропадает в картинке)
+function buildChartSVG(){
+  const CW=36, W=CW*16, yNumTop=9, yUpper=14, yBite=87.5, yLower=90, yNumBot=170, H=176;
+  const upper=[...UPPER_RIGHT,...UPPER_LEFT], lower=[...LOWER_RIGHT,...LOWER_LEFT];
+  const spansU = computePonticFlags(upper), spansL = computePonticFlags(lower);
+  const font = `font-family="-apple-system,Segoe UI,Roboto,Arial,sans-serif"`;
+  let out = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W*1.8}" height="${H*1.8}">
+    <defs>
+      <linearGradient id="enamelGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#FFFDF9"/><stop offset="100%" stop-color="#F1E9D8"/></linearGradient>
+      <linearGradient id="rootGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#F2DAB0"/><stop offset="100%" stop-color="#E7C48C"/></linearGradient>
+      <radialGradient id="gumGrad"><stop offset="0%" stop-color="#E06E64" stop-opacity="0.30"/><stop offset="100%" stop-color="#E06E64" stop-opacity="0"/></radialGradient>
+    </defs>
+    <ellipse cx="${W/2}" cy="${yUpper+60}" rx="${W*0.52}" ry="30" fill="url(#gumGrad)"/>
+    <ellipse cx="${W/2}" cy="${yLower+10}" rx="${W*0.52}" ry="30" fill="url(#gumGrad)"/>
+    <line x1="4" y1="${yBite}" x2="${W-4}" y2="${yBite}" stroke="#DCD6C9" stroke-width="0.8"/>`;
+  function drawRow(nums, isLower){
+    nums.forEach((n,i)=>{
+      const t = TEETH[n];
+      const cx = i*CW + CW/2, x = i*CW + 1;
+      const label = `<text x="${cx}" y="${isLower?yNumBot:yNumTop}" text-anchor="middle" font-size="7" font-weight="600" fill="#5B6670" ${font}>${n}</text>`;
+      if(t._hidden){ out += label; return; }
+      const showMissing = t.status==='missing' && !t.procedures.includes('implant');
+      let inner;
+      if(showMissing) inner = MISSING_SHAPE;
+      else { const p = shapePaths(t._category, t); inner = p.root + p.crown; }
+      const y = isLower ? yLower : yUpper;
+      const body = isLower ? `<g transform="translate(0,70) scale(1,-1)">${inner}</g>` : inner;
+      out += `<g transform="translate(${x},${y})">${body}</g>` + label;
+    });
+  }
+  drawRow(upper,false); drawRow(lower,true);
+  const bar = (spans, isLower)=> spans.map(([a,b])=>{
+    const y = (isLower ? yLower + (70-48) : yUpper + 48) - 1.5;
+    return `<rect x="${(a+0.5)*CW}" y="${y}" width="${(b-a)*CW}" height="3" rx="1.5" fill="#B98A2E"/>`;
+  }).join('');
+  out += bar(spansU,false) + bar(spansL,true) + `</svg>`;
+  return out;
+}
+
+// Сводка диагнозов и процедур по зубам: «Кариес — средний: 14, 25, 26»
+function buildDiagSummary(){
+  const lines = [];
+  CLINICAL_CATEGORIES.forEach(cat=>{
+    cat.items.forEach(it=>{
+      if(it.kind==='status') return;
+      const teeth = ALL_TEETH.filter(n=> (it.kind==='condition' ? TEETH[n].conditions : TEETH[n].procedures).includes(it.code));
+      if(teeth.length) lines.push(`<div><b>${esc(it.label)}:</b> ${teeth.join(', ')}</div>`);
+    });
+  });
+  const missing = ALL_TEETH.filter(n=>TEETH[n].status==='missing');
+  if(missing.length) lines.push(`<div><b>Отсутствуют:</b> ${missing.join(', ')}</div>`);
+  return lines.length ? `<div class="ex-diag">${lines.join('')}</div>` : '';
+}
+
+function buildPlanBlock(def){
+  const groups = PLANS[def.key];
+  const rowsHtml = groups.map((g,idx)=>{
+    const sum = g.rows.reduce((s,r)=>s+r.price*(r.qty||1),0);
+    const doneCnt = g.rows.filter(r=>r.done).length;
+    const allDone = doneCnt===g.rows.length;
+    const teeth = g.rows.filter(r=>r.tooth!==null).map(r=>r.tooth);
+    const qtyRow = g.rows.find(r=>r.qty!==undefined);
+    let sub = [];
+    if(qtyRow) sub.push(`${qtyRow.qty} × ${fmtRub(qtyRow.price)}`);
+    else if(teeth.length){
+      sub.push(`Зубы: ${teeth.join(', ')}`);
+      const same = g.rows.every(r=>r.price===g.rows[0].price);
+      if(same && g.rows.length>1) sub.push(`${g.rows.length} × ${fmtRub(g.rows[0].price)}`);
+    }
+    if(doneCnt>0 && !allDone) sub.push(`выполнено ${doneCnt} из ${g.rows.length}`);
+    const subHtml = sub.length ? `<div class="ex-g-sub">${esc(sub.join(' · '))}</div>` : '';
+    return `<div class="ex-group ${allDone?'ex-g-done':''}">
+      <div class="ex-g-row"><span class="ex-g-name">${allDone?'✓ ':''}${idx+1}. ${esc(g.label)}</span><span class="ex-g-sum">${fmtRub(sum)}</span></div>${subHtml}</div>`;
+  }).join('');
+  const total = planTotal(def.key), done = planDoneSum(def.key);
+  const doneHtml = done>0 ? `<div class="ex-total-sub">Выполнено: ${fmtRub(done)} · Осталось: ${fmtRub(total-done)}</div>` : '';
+  return `<div class="ex-plan">
+    <div class="ex-plan-head" style="background:${def.bg}; color:${def.ink};">${def.title}</div>
+    <div class="ex-plan-body">${rowsHtml}
+      <div class="ex-total"><span>Итого по плану</span><span>${fmtRub(total)}</span></div>${doneHtml}
+    </div></div>`;
+}
+
+function buildExportDoc(){
+  const c = getCaseFields();
+  const filled = PLAN_DEFS.filter(d=>PLANS[d.key].length>0);
+  const cols = Math.max(1, filled.length);
+  const gridStyle = filled.length===1 ? 'grid-template-columns:minmax(0,560px);' : `grid-template-columns:repeat(${cols},minmax(0,1fr));`;
+  const plansHtml = filled.length
+    ? `<div class="ex-plans" style="${gridStyle}">${filled.map(buildPlanBlock).join('')}</div>`
+    : `<div class="ex-empty">План лечения пока не составлен.</div>`;
+  document.getElementById('exportDoc').innerHTML = `
+    <div class="ex-top">
+      <div><div class="ex-brand">${esc(CLINIC_NAME)}</div><div class="ex-title">План лечения</div></div>
+      <div class="ex-meta"><div><span>Пациент:</span> <b>${esc(c.patient)}</b></div><div><span>Врач:</span> <b>${esc(c.doctor)}</b></div><div><span>Дата:</span> <b>${esc(c.date)}</b></div></div>
+    </div>
+    <div class="ex-sec">Состояние зубов</div>
+    <div class="ex-chart">${buildChartSVG()}<div class="ex-side"><span>Правая сторона</span><span>Левая сторона</span></div></div>
+    ${buildDiagSummary()}
+    <div class="ex-plans-wrap"><div class="ex-sec">Варианты лечения</div>
+    ${plansHtml}</div>
+    <div class="ex-foot">Цены указаны в рублях и могут быть уточнены на консультации.</div>`;
+}
+
+function printPlan(){ buildExportDoc(); window.print(); }
+window.addEventListener('beforeprint', buildExportDoc);
+
 async function downloadImage(){
-  document.body.classList.add('exporting');
-  await new Promise(r=>setTimeout(r,50));
+  buildExportDoc();
+  const doc = document.getElementById('exportDoc');
+  doc.classList.add('capturing');
+  await new Promise(r=>setTimeout(r,80));
   try{
-    const canvas = await html2canvas(document.querySelector('.wrap'), {backgroundColor:'#F7F5F1', scale:2});
+    const canvas = await html2canvas(doc, {backgroundColor:'#FFFFFF', scale:2, width:doc.offsetWidth, height:doc.offsetHeight, windowWidth:1100});
     const link = document.createElement('a');
-    const patientName = document.querySelector('.case-field [contenteditable]')?.textContent.trim() || 'plan';
+    const patientName = getCaseFields().patient || 'plan';
     link.download = `plan-lecheniya-${patientName}.png`.replace(/\s+/g,'_');
     link.href = canvas.toDataURL('image/png');
     link.click();
   } finally {
-    document.body.classList.remove('exporting');
+    doc.classList.remove('capturing');
   }
 }
 
