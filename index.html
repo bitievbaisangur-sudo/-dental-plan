@@ -152,6 +152,8 @@
 .ex-g-sum{white-space:nowrap; text-align:right; font-variant-numeric:tabular-nums;}
 .ex-g-sub{font-size:12.5px; color:#5B6670; margin-top:3px; line-height:1.5;}
 .ex-g-done .ex-g-name{text-decoration:line-through; color:#8A9096;}
+.ex-t-row{display:flex; justify-content:space-between; align-items:baseline; gap:12px; font-size:13.5px; padding:4px 0 0 16px; font-variant-numeric:tabular-nums;}
+.ex-t-done .ex-t-name{text-decoration:line-through; color:#8A9096;}
 .ex-total{display:flex; justify-content:space-between; align-items:baseline; margin-top:6px; padding-top:10px; border-top:2px solid #22303C; font-size:16px; font-weight:700;}
 .ex-total-sub{font-size:12.5px; color:#5B6670; margin-top:4px; text-align:right;}
 .ex-empty{font-size:14px; color:#5B6670;}
@@ -1026,9 +1028,16 @@ function buildDiagSummary(){
   return lines.length ? `<div class="ex-diag">${lines.join('')}</div>` : '';
 }
 
+// Процедуры, которые в документе выводятся по одному зубу на строку (с ценой каждого зуба)
+const ITEMIZE_CODES = ['caries_superficial','caries_medium','restoration'];
 function buildPlanBlock(def){
   const groups = PLANS[def.key];
   const rowsHtml = groups.map((g,idx)=>{
+    if(ITEMIZE_CODES.includes(g.code) && g.rows.length && g.rows.every(r=>r.tooth!==null)){
+      const allDoneI = g.rows.every(r=>r.done);
+      const toothRows = g.rows.map(r=>`<div class="ex-t-row ${r.done?'ex-t-done':''}"><span class="ex-t-name">${r.done?'✓ ':''}Зуб ${r.tooth}</span><span class="ex-g-sum">${fmtRub(r.price*(r.qty||1))}</span></div>`).join('');
+      return `<div class="ex-group ${allDoneI?'ex-g-done':''}"><div class="ex-g-row"><span class="ex-g-name">${idx+1}. ${esc(g.label)}</span></div>${toothRows}</div>`;
+    }
     const sum = g.rows.reduce((s,r)=>s+r.price*(r.qty||1),0);
     const doneCnt = g.rows.filter(r=>r.done).length;
     const allDone = doneCnt===g.rows.length;
